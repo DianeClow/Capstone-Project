@@ -1,0 +1,112 @@
+---
+title: "Milestone Report"
+author: "Diane Clow"
+date: "11/27/2016"
+output:
+  html_document:
+    theme: cerulean
+    toc: yes
+---
+
+###Introduction
+
+This is the first Milestone Report for the Data Scientist Specalization Capstone Project on Coursera.  (https://www.coursera.org/specializations/jhu-data-science)  This project involves working with text data to create a prediction algorithm that will predict the next word.
+
+This report was written after the second weeks assignments and will give a general overview of the progress that I have made so far.
+
+```{r, message=FALSE, warning=FALSE, PackageList}
+library(quanteda) #Text Mining
+library(stringi) #word count
+library(ggplot2) #graphing
+library(wordcloud)
+```
+
+I started my analysis using the tm package, but ran into trouble when I tried to load RWeka.  Through more research I came across the quanteda package, which has the same/similar functions and works very well.
+
+###Download Data
+
+The data (found at https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip) contains text from: Blogs, News and Twitter.  I am reading data from the unzipped file stored on my computer.  I then remove all non-english characters from my data.
+
+```{r, ReadData}
+blogs <- readLines("./final/en_US/en_US.blogs.txt", encoding = "UTF-8", skipNul = TRUE)
+news <- readLines("./final/en_US/en_US.news.txt", encoding = "UTF-8", skipNul = TRUE)
+twitter <- readLines("./final/en_US/en_US.twitter.txt", encoding = "UTF-8", skipNul = TRUE)
+
+blogs <- iconv(blogs, "latin1", "ASCII", sub="")
+news <- iconv(news, "latin1", "ASCII", sub="")
+twitter <- iconv(twitter, "latin1", "ASCII", sub="")
+```
+
+###Summary Statistics
+
+There are three data sources that I am using: Blogs, News, and Twitter.  To quickly check, there are `r length(blogs)` elements in blogs, `r length(news)` elements in news, and `r length(twitter)` elements in twitter.  This shows that twitter has the most indivudual entries.  Looking at the file size: `r as.integer(object.size(blogs))` bytes for blogs, `r as.integer(object.size(news))` bytes for news, and `r as.integer(object.size(twitter))` bytes for twitter; we can see that twitter has the largest file size and that both news and blogs have a similar file size even though news has `r length(news) - length(blogs)` more elements.  This implies that the blog entries are longer that the news entires.  As for word count there are: `r sum(stri_count_words(blogs))` words in the blogs file, `r sum(stri_count_words(news))` words in the news file, and `r sum(stri_count_words(twitter))` many words in the twitter file.  Its interesting that the twitter file, despite being larger, and having more entires has the least number of words.
+
+```{r, echo=FALSE}
+element <- c(length(blogs), length(news), length(twitter))
+word <- c(sum(stri_count_words(blogs)), sum(stri_count_words(news)), sum(stri_count_words(twitter)))
+names <- c("blogs", "news", "twitter")
+df <- data.frame(names, element, word)
+ggplot(df, aes(x = names, y = element)) + geom_bar(stat = "identity") + 
+    theme_minimal() + ggtitle("Numbr of Entries")
+ggplot(df, aes(x = names, y = word)) + geom_bar(stat = "identity") + 
+    theme_minimal() + ggtitle("Word Count per Complete File")
+
+```
+
+###Data Prep & Clean up
+
+To make this easier I am going to work with a sample that is 1% of the total data set.  I am going to sample from each file (blogs, news and twitter) and then combine the total set.
+
+```{r}
+set.seed(1)
+sampledata <- c(sample(blogs, length(blogs) * .01), 
+                sample(news, length(news) * .01), 
+                sample(twitter, length(twitter) * .01))
+```
+
+Next I am going to build my corpus from the sample data.  As you can see from the summary, I have 42695 documents in my corpus.
+
+```{r, BuildingCorpus}
+Corpus <- corpus(sampledata)
+summary(Corpus, n=10)
+```
+
+###n-gram Work
+
+I then use the dfm function to create a document-feature matrix.  The dfm function includes a numner of useful automatic arguments: converts everything to lower case, removes punctuation, removes seperators, and removes twitter information.  The topfeatures function shows the top 20 most common words.
+
+```{r, dfm}
+dfm <- dfm(Corpus)
+dfm
+topfeatures(dfm, 20)
+```
+
+Next I created pair and triplet tokens.  Using the same function as before I was able to change the ngram variable and run the same analysis.
+
+```{r, PairTriplet}
+dfm.pair <- dfm(Corpus, ngrams = 2)
+dfm.triple <- dfm(Corpus, ngram = 3)
+
+dfm.pair
+dfm.triple
+topfeatures(dfm.pair, 20)
+topfeatures(dfm.triple, 20)
+```
+
+I also created some word clouds to visually be able to see what the common words and word pairs are.
+
+The most common words that you notice in the single word cloud are (in no particular order): the, that, you, a, to, on, of, and, in, for, it, is, and i.  These words are all different colors than the base green as well as being noticably larger, and if you check with the table above, you will see that I listed the top 13 words.
+
+In the pair word cloud, the words that pop out (in no particular order) are: of the, in the, to be, to the, on the, at the, with the, and for the.  There is a common thread of the and to.
+
+In the triplet word coloud (in no particular order) the words that pop out are: a lot of, going to be, thanks for the, to be a, the rest of, be able to, it was a, the first time, some of the, the end of, and out of the.  The is still a common word, but I am not seeing the pairs within the triplests, possibly meaning that the pairs are not very helpful in predicting the third word.
+
+```{r, warning=FALSE}
+plot(dfm, max.words = 500, colors = brewer.pal(6, "Dark2"))
+plot(dfm.pair, max.words = 250, colors = brewer.pal(6, "Dark2"))
+plot(dfm.triple, max.words = 50, colors = brewer.pal(6, "Dark2"))
+```
+
+###Next Steps
+
+At this point I feel like I need to keep looking for patterns before I start building my model.  As I showed with the word cloud there is not a natural progression of clustering around the same words, and I would like to explore more with what is going on there.
